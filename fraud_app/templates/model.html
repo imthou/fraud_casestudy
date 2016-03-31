@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block body %}
+
+<h1> Our Model </h1>
+<h3> "Detecting Fraud Since 3/30/16" </h3>
+<br>
+<br>
+<br>
+<!-- <p class="lead">We will take your article.<br> And predict what section that article belongs to.</p> -->
+<br>
+<br>
+<h3>
+    By:
+    {% for name in names %}
+    {{ name }}{% endfor %}
+</h3>
+
+
+{% endblock %}

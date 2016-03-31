@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block body %}
+
+<p class="lead">
+    {% for data in stored_data %}
+    {{ data[0] }} ---- {{ data[1] }} <br>
+    Fraud Prediction: {{ data[2] }} <br>
+    {% endfor %}
+</p>
+
+<h3> Most Recent Data: </h3>
+<div align="center">{{ df | safe }}</div>
+
+{% endblock %}
