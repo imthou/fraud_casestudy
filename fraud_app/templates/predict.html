@@ -5,7 +5,9 @@
     {% for data in stored_data %}
     {{ data[0] }} ---- {{ data[1] }} <br>
     Fraud Prediction: {{ data[2] }} <br>
+    True: {{ data[4][True] }}, False: {{ data[4][False] }} <br><br>
     {% endfor %}
+
 </p>
 
 <h3> Most Recent Data: </h3>

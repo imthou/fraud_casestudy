@@ -11,12 +11,14 @@ import socket
 import time
 from parse_live_data import FraudModel
 from pandas.io.json import json_normalize
+from collections import Counter
 
 PORT = 8000
 REGISTER_URL = "http://10.6.2.185:5000/register"
 DATA = []
 TIMESTAMP = []
 STORED_DATA = []
+STORED_COUNT = []
 
 def parse_newdata(data):
     predictions = []
@@ -58,7 +60,7 @@ def check():
         line3 = DATA[-1]
         output = "{0}\n\n{1}\n\n{2}".format(line1, line2, line3)
         prediction, newdf, jdoc, newdf = parse_newdata(DATA)
-        data = [line2, line1, prediction, jdoc]
+        data = [line2, line1, prediction, jdoc, Counter(prediction)]
         if data not in STORED_DATA:
             STORED_DATA.append(data)
     else:

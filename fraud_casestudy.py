@@ -7,6 +7,7 @@ from sklearn.cross_validation import train_test_split, cross_val_score
 from sklearn.grid_search import GridSearchCV
 from bs4 import BeautifulSoup
 import cPickle as pickle
+from bokeh.charts import Bar, output_file, show
 
 class FraudModel(object):
     """
@@ -15,7 +16,7 @@ class FraudModel(object):
     Build several models to use to detect fraudulent activity
     """
 
-    def __init__(self):
+    def convert_json(self):
         """
         Input: JSON Document
         Output: Dataframe
@@ -54,17 +55,32 @@ class FraudModel(object):
         18. dummified several categorical variables: 'country','currency', 'payout_type','has_header','user_type'
         19. dropped unimportant features: 'acct_type','approx_payout_date','description','email_domain','event_created','event_end','event_published','event_start','name','object_id','org_desc','org_name','org_facebook','org_twitter','previous_payouts','sale_duration2','show_map','ticket_types','user_created','venue_address','venue_country','venue_name','venue_state','listed','gts','text_desc','payee_name','email_fraud_NA'
         """
+
+        """
+        Model 1: Features: ['payee_name','venue_country_US','venue_country_PH','previous_payouts','payout_type','venue_address','email_domain','event_pubtostart','isfraud']
+        """
+        self.df['payee_name'] = self.df['payee_name'].map(lambda x: x.replace(' ', '')).apply(lambda x: 1 if x == '' else 0)
+        self.df['venue_country_US'] = self.df['venue_country'].apply(lambda x: 1 if x == 'US' else 0)
+        self.df['venue_country_PH'] = self.df['venue_country'].apply(lambda x: 1 if x == 'PH' else 0)
+        self.df['previous_payouts'] = self.df['previous_payouts'].apply(lambda x: 0 if not x else 1)
+        self.df['payout_type'] = self.df['payout_type'].apply(lambda x: 1 if x == 'CHECK' else 0)
+        self.df['venue_address'] = self.df['venue_address'].map(lambda x: x.replace(' ', '')).apply(lambda x: 1 if x == 'ValentinaVodnika' else 0)
+        self.df['email_domain'] = self.df['email_domain'].apply(lambda x: 1 if x == 'gmail.com' else 0)
+
+
+
         events = ['event_created','event_end','event_published','event_start','approx_payout_date']
         for event in events:
             self.df[event] = pd.to_datetime(self.df[event], unit='s')
-        self.df['event_duration'] = (self.df['event_end'] - self.df['event_start']).dt.days
+        # self.df['event_duration'] = (self.df['event_end'] - self.df['event_start']).dt.days
+        # self.df['event_pubtostart'] = (self.df['event_start'] - self.df['event_published']).dt.days
         self.df['event_pubtostart'] = (self.df['event_start'] - self.df['event_published']).dt.days
         fraud_accts = ['fraudster_event','fraudster','locked','tos_lock','fraudster_att']
         self.df['isfraud'] = self.df['acct_type'].apply(lambda x: x in fraud_accts)
-        self.df['country'] = self.df['country'].replace("","No Entry").fillna('No Entry')
-        self.df['listed'] = self.df.listed.apply(lambda x: x== 'y')
-        self.df['email_fraud'] = zip(self.df.email_domain.tolist(),self.df.isfraud.tolist())
-        self.df['email_fraud'] = self.df['email_fraud'].apply(lambda x: x[0].replace(x[0],"NA") if x[1] == False else x[0])
+        # self.df['country'] = self.df['country'].replace("","No Entry").fillna('No Entry')
+        # self.df['listed'] = self.df.listed.apply(lambda x: x== 'y')
+        # self.df['email_fraud'] = zip(self.df.email_domain.tolist(),self.df.isfraud.tolist())
+        # self.df['email_fraud'] = self.df['email_fraud'].apply(lambda x: x[0].replace(x[0],"NA") if x[1] == False else x[0])
         # self.df['payee_fraud'] = zip(self.df['payee_name'].tolist(),self.df.isfraud.tolist())
         # self.df['payee_fraud'] = self.df['payee_fraud'].apply(lambda x: x[0].replace(x[0],"NA") if x[1] == False else x[0])
 
@@ -72,48 +88,48 @@ class FraudModel(object):
         '''
         Jennifer
         '''
-        self.df['has_img'] = ['img' in r for r in self.df['description']]
-        self.df['name'].replace('','NO NAME GIVEN', inplace=True)
-        self.df['percent_caps']=[sum(1 for c in r if c.isupper())/float(len(r)) for r in self.df['name']]
-        self.df['name_lessthantwo'] = [r < 2 for r in self.df['name_length']]
+        # self.df['has_img'] = ['img' in r for r in self.df['description']]
+        # self.df['name'].replace('','NO NAME GIVEN', inplace=True)
+        # self.df['percent_caps']=[sum(1 for c in r if c.isupper())/float(len(r)) for r in self.df['name']]
+        # self.df['name_lessthantwo'] = [r < 2 for r in self.df['name_length']]
         self.df['nogts'] = [r == 0 for r in self.df['gts']]
-        self.df['text_desc'] = [BeautifulSoup(desc, "lxml").get_text() for desc in self.df['description']]
-        self.df['percent_exc'] = [sum(1 for c in r if c == '!')/float(sum(1 for c in r if c in ['.','?','!'])+1) for r in self.df['text_desc']]
-        self.df['has_bar'] = ['bar' in r for r in self.df['text_desc']]
-        self.df['has_city'] = ['city' in r for r in self.df['text_desc']]
-        self.df['has_club'] = ['club' in r for r in self.df['text_desc']]
-        self.df['has_dj'] = ['dj' in r for r in self.df['text_desc']]
-        self.df['has_events'] = ['events' in r for r in self.df['text_desc']]
-        self.df['has_live'] = ['live' in r for r in self.df['text_desc']]
-        self.df['has_nyc'] = ['nyc' in r for r in self.df['text_desc']]
-        self.df['has_open'] = ['open' in r for r in self.df['text_desc']]
-        self.df['has_party'] = ['party' in r for r in self.df['text_desc']]
-        self.df['has_place'] = ['place' in r for r in self.df['text_desc']]
-        self.df['has_contact'] = ['contact' in r for r in self.df['text_desc']]
-        self.df['has_group'] = ['group' in r for r in self.df['text_desc']]
-        self.df['has_life'] = ['life' in r for r in self.df['text_desc']]
-        self.df['has_registration'] = ['registration' in r for r in self.df['text_desc']]
-        self.df['has_session'] = ['session' in r for r in self.df['text_desc']]
-        self.df['has_social'] = ['social' in r for r in self.df['text_desc']]
-        self.df['has_training'] = ['training' in r for r in self.df['text_desc']]
-        self.df['has_work'] = ['work' in r for r in self.df['text_desc']]
-        self.df['has_workshop'] = ['workshop' in r for r in self.df['text_desc']]
+        # self.df['text_desc'] = [BeautifulSoup(desc, "lxml").get_text() for desc in self.df['description']]
+        # self.df['percent_exc'] = [sum(1 for c in r if c == '!')/float(sum(1 for c in r if c in ['.','?','!'])+1) for r in self.df['text_desc']]
+        # self.df['has_bar'] = ['bar' in r for r in self.df['text_desc']]
+        # self.df['has_city'] = ['city' in r for r in self.df['text_desc']]
+        # self.df['has_club'] = ['club' in r for r in self.df['text_desc']]
+        # self.df['has_dj'] = ['dj' in r for r in self.df['text_desc']]
+        # self.df['has_events'] = ['events' in r for r in self.df['text_desc']]
+        # self.df['has_live'] = ['live' in r for r in self.df['text_desc']]
+        # self.df['has_nyc'] = ['nyc' in r for r in self.df['text_desc']]
+        # self.df['has_open'] = ['open' in r for r in self.df['text_desc']]
+        # self.df['has_party'] = ['party' in r for r in self.df['text_desc']]
+        # self.df['has_place'] = ['place' in r for r in self.df['text_desc']]
+        # self.df['has_contact'] = ['contact' in r for r in self.df['text_desc']]
+        # self.df['has_group'] = ['group' in r for r in self.df['text_desc']]
+        # self.df['has_life'] = ['life' in r for r in self.df['text_desc']]
+        # self.df['has_registration'] = ['registration' in r for r in self.df['text_desc']]
+        # self.df['has_session'] = ['session' in r for r in self.df['text_desc']]
+        # self.df['has_social'] = ['social' in r for r in self.df['text_desc']]
+        # self.df['has_training'] = ['training' in r for r in self.df['text_desc']]
+        # self.df['has_work'] = ['work' in r for r in self.df['text_desc']]
+        # self.df['has_workshop'] = ['workshop' in r for r in self.df['text_desc']]
 
         '''
         Jesse
         '''
-        self.df['has_orgdesc'] = self.df.org_desc.apply(lambda x: x != '')
-        self.df['has_fbkcateg'] = self.df.org_facebook.apply(lambda x: x != 0)
-        self.df['has_twitteracctnum'] = self.df.org_twitter.apply(lambda x: x != 0)
-        self.df['has_url'] = ['http' in r for r in self.df['org_desc']]
-        self.df['payout_type'] = self.df['payout_type'].replace('','UNK')
-        self.df['has_prev_payout'] = self.df['previous_payouts'].apply(lambda x: 0 if not x else 1)
-        fraud_list = ['LIself.df','Global Gas Card','Ultimate Wine','Pocket Pictures', 'FORD MODELS UK',
-                  'Rotary Club of East Los Angeles', 'Tree of Life', 'Startup Saturdays', 'Gametightny.com', 'Ger-Nis Culinary & Herb Center',
-                  'Joonbug', 'Market District Robinson', 'Premier Events', 'Pocket Pictures', 'STYLEPARTIES', 'Blow The Whistle On Bullying ~ It Matters What We do',
-                  'Network After Work','Museum of Contemporary Art, North Miami', "Mabs' Events", 'DC Black Theatre Festival', 'stephen',
-                  '1st Class Travel Club', 'ELITE SOCIAL', 'Absolution Chess Club']
-        self.df['org_name_naughty_list'] = self.df['org_name'].isin(fraud_list)
+        # self.df['has_orgdesc'] = self.df.org_desc.apply(lambda x: x != '')
+        # self.df['has_fbkcateg'] = self.df.org_facebook.apply(lambda x: x != 0)
+        # self.df['has_twitteracctnum'] = self.df.org_twitter.apply(lambda x: x != 0)
+        # self.df['has_url'] = ['http' in r for r in self.df['org_desc']]
+        # self.df['payout_type'] = self.df['payout_type'].replace('','UNK')
+        # self.df['has_prev_payout'] = self.df['previous_payouts'].apply(lambda x: 0 if not x else 1)
+        # fraud_list = ['LIself.df','Global Gas Card','Ultimate Wine','Pocket Pictures', 'FORD MODELS UK',
+        #           'Rotary Club of East Los Angeles', 'Tree of Life', 'Startup Saturdays', 'Gametightny.com', 'Ger-Nis Culinary & Herb Center',
+        #           'Joonbug', 'Market District Robinson', 'Premier Events', 'Pocket Pictures', 'STYLEPARTIES', 'Blow The Whistle On Bullying ~ It Matters What We do',
+        #           'Network After Work','Museum of Contemporary Art, North Miami', "Mabs' Events", 'DC Black Theatre Festival', 'stephen',
+        #           '1st Class Travel Club', 'ELITE SOCIAL', 'Absolution Chess Club']
+        # self.df['org_name_naughty_list'] = self.df['org_name'].isin(fraud_list)
 
         '''
         Muneeb
@@ -124,11 +140,11 @@ class FraudModel(object):
             self.df[ns[i]] = self.df['ticket_types'].map(f)
 
 
-        self.df = pd.get_dummies(self.df, columns=['country','currency', 'payout_type','has_header','user_type','email_fraud']) #
-        dropped_columns = ['acct_type','approx_payout_date','description','email_domain','event_created','event_end','event_published','event_start','name','object_id','org_desc','org_name','org_facebook','org_twitter','previous_payouts','sale_duration2','show_map','ticket_types','user_created','venue_address','venue_country','venue_name','venue_state','listed','gts','text_desc','payee_name','email_fraud_NA'] #
-        self.df_rf = self.df.drop(dropped_columns, axis=1)
-
-        return self.df_rf
+        # self.df = pd.get_dummies(self.df, columns=['country','currency', 'payout_type','has_header','user_type','email_fraud']) #
+        # dropped_columns = ['acct_type','approx_payout_date','description','email_domain','event_created','event_end','event_published','event_start','name','object_id','org_desc','org_name','org_facebook','org_twitter','previous_payouts','sale_duration2','show_map','ticket_types','user_created','venue_address','venue_country','venue_name','venue_state','listed','gts','text_desc','payee_name','email_fraud_NA'] #
+        # self.df_rf = self.df.drop(dropped_columns, axis=1)
+        keep = ['payee_name','venue_country_US','venue_country_PH','previous_payouts','payout_type','venue_address','email_domain','event_pubtostart','isfraud','num_of_tickets', 'total_number_of_tickets_for_sale', 'total_ticket_costs', 'number_of_tickets_sold','sale_duration','nogts']
+        return self.df[keep]
 
     def get_num_of_tickets(self, ticket_types):
         """
@@ -173,7 +189,7 @@ class FraudModel(object):
 
         random_forest_grid = {'n_estimators': [10],
                                 'criterion': ['gini','entropy'],
-                                'min_samples_split': [2, 4, 6],
+                                'min_samples_split': [2, 4, 6, 7],
                                 'min_samples_leaf': [1, 2],
                                 'n_jobs': [-1],
                                 'max_features': ['sqrt',None,'log2'],
@@ -183,7 +199,8 @@ class FraudModel(object):
                                      random_forest_grid,
                                      n_jobs=-1,
                                      verbose=True,
-                                     scoring='accuracy')
+                                     scoring='accuracy',
+                                     cv=5)
 
         rf_gridsearch.fit(X_train, y_train)
 
@@ -251,11 +268,14 @@ class FraudModel(object):
 
         Pickles our model for later use
         """
-        with open("{}.pkl".format(name), 'w') as f:
+        with open("fraud_app/data/{}.pkl".format(name), 'w') as f:
             pickle.dump(model, f)
+
+
 
 if __name__ == '__main__':
     fm = FraudModel()
+    fm.convert_json()
     df2 = fm.preprocess_data()
     df2.dropna(inplace=True)
 
@@ -270,4 +290,14 @@ if __name__ == '__main__':
 
     fm.plot_confusion_matrix(y_test, y_pred, [1,0])
 
-    # fm.pickle_model(best_rf_model, name='model3_w_email')
+    df2.to_csv("fraud_app/data/fraud_data.csv", index=False)
+
+    # fm.pickle_model(best_rf_model, name='model4')
+
+    # df3 = pd.concat([pd.DataFrame(df2.columns.tolist(), columns=['columns']), pd.DataFrame(best_rf_model.feature_importances_.tolist(), columns=['featimpt'])], axis=1).sort_values(by='featimpt', ascending=False)
+    #
+    # p = Bar(df3, 'columns', values='featimpt', title="Feature Importance From Model")
+    #
+    # output_file("feat_impt.html", title="Feature Importance From Model")
+    #
+    # show(p)
